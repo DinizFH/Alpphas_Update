@@ -49,6 +49,19 @@ class MainWindow(QMainWindow):
         subtitulo.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         subtitulo.setObjectName("appSubtitle")
 
+        # --------------------------
+        # RODAPÉ
+        # --------------------------
+        rodape = QLabel("Desenvolvido por: João Antonio Diniz Filho\n"
+        "Analista de Sucesso do Cliente SR")
+        rodape.setAlignment(Qt.AlignCenter)
+        rodape.setStyleSheet("""
+            color: #666;
+            font-size: 12px;
+            margin-top: 10px;
+        """)
+
+        layout.addWidget(rodape)
         layout.addWidget(titulo)
         layout.addWidget(subtitulo)
 
