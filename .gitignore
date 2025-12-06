@@ -1,0 +1,63 @@
+# =========================================
+# AMBIENTE PYTHON / VENV
+# =========================================
+venv/
+.env
+*.env
+.env.*
+
+# =========================================
+# PASTAS E ARQUIVOS AUTOMÁTICOS
+# =========================================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+
+# Logs
+*.log
+logs/
+ADB/LOGS/
+
+# =========================================
+# BUILD / DISTRIBUIÇÃO (FUTURO: EXE)
+# =========================================
+build/
+dist/
+*.spec
+
+# PyInstaller
+*.manifest
+*.dll
+
+# =========================================
+# CONFIGURAÇÃO LOCAL E EDITORES
+# =========================================
+.vscode/
+.idea/
+
+# Arquivos temporários do sistema
+Thumbs.db
+.DS_Store
+*.tmp
+
+# =========================================
+# BANCO DE DADOS (CASO EXporte dumps)
+# =========================================
+*.sql
+*.bak
+
+# =========================================
+# ARQUIVOS TEMPORÁRIOS DO USUÁRIO
+# =========================================
+uploads/
+cache/
+*.old
+
+# =========================================
+# APKs / Arquivos grandes (se quiser ignorar)
+# (Se quiser versionar os APKs remova essas linhas)
+# =========================================
+*.apk
+TELA/APKS/
