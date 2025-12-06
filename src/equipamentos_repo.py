@@ -6,15 +6,22 @@ def listar_equipamentos() -> List[Dict]:
     """
     Lista equipamentos com nome do cliente.
 
-    Observação:
-    - As colunas do banco são:
-      nome_modelo, path_cadastros, path_mapas, path_pontofixo
-    - Aqui fazemos alias (AS ...) para nomes mais amigáveis
-      usados pela interface: nome, pasta_cadastros, etc.
+    Colunas no banco:
+      - nome_modelo
+      - path_cadastros
+      - path_mapas
+      - path_pontofixo
+
+    Aqui fazemos alias para nomes usados pela interface:
+      - nome
+      - pasta_cadastros
+      - pasta_mapas
+      - pasta_ponto_fixo
     """
     sql = """
         SELECT
             e.id,
+            e.cliente_id,
             c.nome AS cliente_nome,
             e.nome_modelo AS nome,
             e.path_cadastros AS pasta_cadastros,
@@ -42,7 +49,6 @@ def criar_equipamento(
 ) -> int:
     """
     Cria um equipamento vinculado a um cliente.
-
     Mapeando:
     - nome           -> nome_modelo
     - pasta_*        -> path_*
@@ -68,6 +74,44 @@ def criar_equipamento(
         )
         conn.commit()
         return cursor.lastrowid
+
+
+def atualizar_equipamento(
+    equipamento_id: int,
+    nome: str,
+    pasta_cadastros: str,
+    pasta_mapas: str,
+    pasta_ponto_fixo: str,
+    tipo: str | None = None,
+) -> None:
+    """
+    Atualiza dados do equipamento.
+    """
+    sql = """
+        UPDATE equipamentos
+        SET
+            nome_modelo = %s,
+            tipo = %s,
+            path_cadastros = %s,
+            path_mapas = %s,
+            path_pontofixo = %s
+        WHERE id = %s
+    """
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            sql,
+            (
+                nome,
+                tipo,
+                pasta_cadastros,
+                pasta_mapas,
+                pasta_ponto_fixo,
+                equipamento_id,
+            ),
+        )
+        conn.commit()
 
 
 def excluir_equipamento(equipamento_id: int) -> None:

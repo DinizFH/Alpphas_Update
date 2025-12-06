@@ -1,3 +1,7 @@
+import os
+import sys
+import subprocess
+
 from PySide6.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -11,12 +15,18 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
     QInputDialog,
+    QComboBox,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QCursor
 
 from clientes_repo import listar_clientes
-from equipamentos_repo import listar_equipamentos, criar_equipamento, excluir_equipamento
+from equipamentos_repo import (
+    listar_equipamentos,
+    criar_equipamento,
+    atualizar_equipamento,
+    excluir_equipamento,
+)
 
 
 class EquipamentosWindow(QMainWindow):
@@ -24,7 +34,10 @@ class EquipamentosWindow(QMainWindow):
         super().__init__()
 
         self.setWindowTitle("Alpphas Update - Equipamentos")
-        self.resize(900, 500)
+        self.resize(900, 520)
+
+        # lista completa (para filtro por cliente)
+        self._equipamentos_todos = []
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -46,30 +59,72 @@ class EquipamentosWindow(QMainWindow):
         layout.addWidget(titulo)
         layout.addWidget(subtitulo)
 
-        # Botões
-        botoes_layout = QHBoxLayout()
-        botoes_layout.setSpacing(8)
+        # =======================
+        # Linha de botões + filtro
+        # =======================
+        topo_layout = QHBoxLayout()
+        topo_layout.setSpacing(8)
 
         self.btn_novo = QPushButton("Novo equipamento")
         self.btn_novo.setCursor(QCursor(Qt.PointingHandCursor))
         self.btn_novo.clicked.connect(self.novo_equipamento)
 
+        self.btn_editar = QPushButton("Editar selecionado")
+        self.btn_editar.setCursor(QCursor(Qt.PointingHandCursor))
+        self.btn_editar.clicked.connect(self.editar_selecionado)
+
         self.btn_excluir = QPushButton("Excluir selecionado")
         self.btn_excluir.setCursor(QCursor(Qt.PointingHandCursor))
         self.btn_excluir.clicked.connect(self.excluir_selecionado)
 
+        topo_layout.addWidget(self.btn_novo)
+        topo_layout.addWidget(self.btn_editar)
+        topo_layout.addWidget(self.btn_excluir)
+        topo_layout.addStretch()
+
+        lbl_filtro = QLabel("Cliente:")
+        self.combo_cliente = QComboBox()
+        self.combo_cliente.setCursor(QCursor(Qt.PointingHandCursor))
+        self.combo_cliente.currentIndexChanged.connect(self.aplicar_filtro_cliente)
+
         self.btn_atualizar = QPushButton("Atualizar lista")
         self.btn_atualizar.setCursor(QCursor(Qt.PointingHandCursor))
-        self.btn_atualizar.clicked.connect(self.carregar_equipamentos)
+        self.btn_atualizar.clicked.connect(self.recarregar_dados)
 
-        botoes_layout.addWidget(self.btn_novo)
-        botoes_layout.addWidget(self.btn_excluir)
-        botoes_layout.addStretch()
-        botoes_layout.addWidget(self.btn_atualizar)
+        topo_layout.addWidget(lbl_filtro)
+        topo_layout.addWidget(self.combo_cliente)
+        topo_layout.addWidget(self.btn_atualizar)
 
-        layout.addLayout(botoes_layout)
+        layout.addLayout(topo_layout)
 
+        # =======================
+        # Linha de botões: abrir pastas
+        # =======================
+        abrir_layout = QHBoxLayout()
+        abrir_layout.setSpacing(8)
+
+        self.btn_abrir_cad = QPushButton("Abrir CADASTROS")
+        self.btn_abrir_cad.setCursor(QCursor(Qt.PointingHandCursor))
+        self.btn_abrir_cad.clicked.connect(lambda: self.abrir_pasta("cad"))
+
+        self.btn_abrir_map = QPushButton("Abrir MAPAS")
+        self.btn_abrir_map.setCursor(QCursor(Qt.PointingHandCursor))
+        self.btn_abrir_map.clicked.connect(lambda: self.abrir_pasta("map"))
+
+        self.btn_abrir_pf = QPushButton("Abrir PONTO FIXO")
+        self.btn_abrir_pf.setCursor(QCursor(Qt.PointingHandCursor))
+        self.btn_abrir_pf.clicked.connect(lambda: self.abrir_pasta("pf"))
+
+        abrir_layout.addWidget(self.btn_abrir_cad)
+        abrir_layout.addWidget(self.btn_abrir_map)
+        abrir_layout.addWidget(self.btn_abrir_pf)
+        abrir_layout.addStretch()
+
+        layout.addLayout(abrir_layout)
+
+        # =======================
         # Tabela
+        # =======================
         self.table = QTableWidget()
         self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels(
@@ -90,14 +145,62 @@ class EquipamentosWindow(QMainWindow):
 
         layout.addWidget(self.table)
 
+        # Carregar dados iniciais
+        self.carregar_clientes_filtro()
         self.carregar_equipamentos()
 
+    # ============================
+    # Carregamento de dados
+    # ============================
+
+    def recarregar_dados(self):
+        self.carregar_clientes_filtro()
+        self.carregar_equipamentos()
+
+    def carregar_clientes_filtro(self):
+        """
+        Preenche o combo de filtro de clientes.
+        """
+        try:
+            clientes = listar_clientes()
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Erro", f"Erro ao carregar clientes para filtro:\n{e}"
+            )
+            return
+
+        self.combo_cliente.blockSignals(True)
+        self.combo_cliente.clear()
+        self.combo_cliente.addItem("Todos os clientes", userData=None)
+
+        for c in clientes:
+            self.combo_cliente.addItem(c["nome"], userData=c["id"])
+
+        self.combo_cliente.blockSignals(False)
+
     def carregar_equipamentos(self):
+        """
+        Busca todos os equipamentos e aplica o filtro atual do combo.
+        """
         try:
             equips = listar_equipamentos()
         except Exception as e:
             QMessageBox.critical(self, "Erro", f"Erro ao carregar equipamentos:\n{e}")
             return
+
+        self._equipamentos_todos = equips
+        self.aplicar_filtro_cliente()
+
+    def aplicar_filtro_cliente(self):
+        """
+        Aplica filtro de cliente sobre self._equipamentos_todos
+        e preenche a tabela.
+        """
+        cliente_id = self.combo_cliente.currentData()
+        equips = self._equipamentos_todos or []
+
+        if cliente_id is not None:
+            equips = [e for e in equips if e["cliente_id"] == cliente_id]
 
         self.table.setRowCount(0)
 
@@ -123,6 +226,10 @@ class EquipamentosWindow(QMainWindow):
             self.table.setItem(row_idx, 6, item_criado)
 
         self.table.resizeColumnsToContents()
+
+    # ============================
+    # CRUD
+    # ============================
 
     def novo_equipamento(self):
         # 1) escolhe o cliente
@@ -209,6 +316,87 @@ class EquipamentosWindow(QMainWindow):
         )
         self.carregar_equipamentos()
 
+    def editar_selecionado(self):
+        linha = self.table.currentRow()
+        if linha < 0:
+            QMessageBox.warning(
+                self, "Atenção", "Selecione um equipamento para editar."
+            )
+            return
+
+        item_id = self.table.item(linha, 0)
+        item_nome = self.table.item(linha, 2)
+        item_cad = self.table.item(linha, 3)
+        item_map = self.table.item(linha, 4)
+        item_pf = self.table.item(linha, 5)
+
+        if not item_id:
+            QMessageBox.warning(
+                self, "Atenção", "Não foi possível identificar o equipamento."
+            )
+            return
+
+        equip_id = int(item_id.text())
+        nome_atual = item_nome.text() if item_nome else ""
+        cad_atual = item_cad.text() if item_cad else ""
+        map_atual = item_map.text() if item_map else ""
+        pf_atual = item_pf.text() if item_pf else ""
+
+        # Nome
+        novo_nome, ok = QInputDialog.getText(
+            self,
+            "Editar modelo",
+            "Modelo do equipamento:",
+            text=nome_atual,
+        )
+        if not ok or not novo_nome.strip():
+            return
+        novo_nome = novo_nome.strip()
+
+        # Pastas (se cancelar, mantém a atual)
+        nova_cad = QFileDialog.getExistingDirectory(
+            self,
+            "Selecione a pasta de CADASTROS (Cancel = manter atual)",
+            cad_atual or "",
+        )
+        if not nova_cad:
+            nova_cad = cad_atual
+
+        nova_map = QFileDialog.getExistingDirectory(
+            self,
+            "Selecione a pasta de MAPAS (Cancel = manter atual)",
+            map_atual or "",
+        )
+        if not nova_map:
+            nova_map = map_atual
+
+        nova_pf = QFileDialog.getExistingDirectory(
+            self,
+            "Selecione a pasta de PONTO FIXO (Cancel = manter atual)",
+            pf_atual or "",
+        )
+        if not nova_pf:
+            nova_pf = pf_atual
+
+        try:
+            atualizar_equipamento(
+                equipamento_id=equip_id,
+                nome=novo_nome,
+                pasta_cadastros=nova_cad,
+                pasta_mapas=nova_map,
+                pasta_ponto_fixo=nova_pf,
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Erro ao atualizar equipamento:\n{e}")
+            return
+
+        QMessageBox.information(
+            self,
+            "Sucesso",
+            f"Equipamento '{novo_nome}' atualizado com sucesso.",
+        )
+        self.carregar_equipamentos()
+
     def excluir_selecionado(self):
         linha = self.table.currentRow()
         if linha < 0:
@@ -248,3 +436,56 @@ class EquipamentosWindow(QMainWindow):
 
         QMessageBox.information(self, "Sucesso", f"Equipamento '{nome}' excluído.")
         self.carregar_equipamentos()
+
+    # ============================
+    # Abrir pastas
+    # ============================
+
+    def abrir_pasta(self, tipo: str):
+        """
+        tipo: 'cad', 'map', 'pf'
+        """
+        linha = self.table.currentRow()
+        if linha < 0:
+            QMessageBox.warning(
+                self, "Atenção", "Selecione um equipamento para abrir a pasta."
+            )
+            return
+
+        col_map = {"cad": 3, "map": 4, "pf": 5}
+        col = col_map.get(tipo)
+        if col is None:
+            return
+
+        item_path = self.table.item(linha, col)
+        path = item_path.text() if item_path else ""
+
+        if not path:
+            QMessageBox.warning(self, "Atenção", "Caminho da pasta não encontrado.")
+            return
+
+        if not os.path.isdir(path):
+            QMessageBox.warning(
+                self,
+                "Atenção",
+                f"A pasta não existe mais no caminho informado:\n{path}",
+            )
+            return
+
+        try:
+            self._abrir_no_explorer(path)
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Erro",
+                f"Não foi possível abrir a pasta:\n{path}\n\n{e}",
+            )
+
+    @staticmethod
+    def _abrir_no_explorer(path: str):
+        if sys.platform.startswith("win"):
+            os.startfile(path)
+        elif sys.platform.startswith("darwin"):
+            subprocess.Popen(["open", path])
+        else:
+            subprocess.Popen(["xdg-open", path])
