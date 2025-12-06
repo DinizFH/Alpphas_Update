@@ -1,23 +1,22 @@
-#Configuraçõ de conexão com o banco de dados
+import os
 import mysql.connector
 from mysql.connector import Error
+from dotenv import load_dotenv
 
-DB_CONFIG = {
-    "host": "localhost",
-    "user": "root", 
-    "password": "Diniz@3582",
-    "database": "alpphas_update",
-}
-
+# Carrega variáveis do arquivo .env
+load_dotenv()
 
 def get_connection():
-    """
-    Abre uma conexão com o banco de dados MySQL.
-    Use com 'with get_connection() as conn:'.
-    """
     try:
-        conn = mysql.connector.connect(**DB_CONFIG)
+        conn = mysql.connector.connect(
+            host=os.getenv("DB_HOST"),
+            port=os.getenv("DB_PORT"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASS"),
+            database=os.getenv("DB_NAME"),
+        )
         return conn
+
     except Error as e:
         print(f"[ERRO] Não foi possível conectar ao banco: {e}")
-        raise
+        raise e
