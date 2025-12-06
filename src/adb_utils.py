@@ -148,26 +148,30 @@ def listar_pacotes_instalados() -> List[str]:
     return _pm_list_packages()
 
 
+# Pacotes que NÃO queremos nunca tratar como Solinftec/Bordo
+PACOTES_EXCLUIDOS = {
+    "com.google.android.configupdater",
+    "com.android.carrierconfig",
+}
+
+
 def detectar_pacotes_solinftec() -> List[str]:
     """
     Retorna pacotes relacionados à Solinftec / ConfigMag / TPL / SCBordo
-    encontrados no dispositivo, com base em palavras-chave.
+    encontrados no dispositivo.
 
-    Isso permite pegar:
-      - com.solinftec.s7configmag100r (tela nova)
-      - qualquer com.solinftec.* (SCBordo, TPL, etc.)
-      - outros pacotes que contenham 'configmag', 'tpl', 'bordo', etc.
+    Agora só considera pacotes que começam com 'com.solinftec.' e
+    ainda filtra os que estiverem em PACOTES_EXCLUIDOS.
     """
     pacotes = _pm_list_packages()
     encontrados: List[str] = []
 
-    # Palavras-chave relevantes
-    chaves = ["solinf", "config", "mag", "tpl", "bordo", "scb", "s7"]
-
     for pkg in pacotes:
-        lower = pkg.lower()
-        if any(ch in lower for ch in chaves):
-            encontrados.append(pkg)
+        if not pkg.startswith("com.solinftec."):
+            continue
+        if pkg in PACOTES_EXCLUIDOS:
+            continue
+        encontrados.append(pkg)
 
     # remove duplicados preservando a ordem
     vistos = set()
@@ -200,17 +204,20 @@ def descobrir_pacote_solinftec() -> str:
     deve ser limpo antes da atualização (pm clear).
 
     Regras:
-      1) Procurar pacotes que contenham 's7config' ou 'configmag'
-      2) Se não existir, procurar outros pacotes relacionados
-         à Solinftec (detectar_pacotes_solinftec)
+      1) Procurar pacotes Solinftec que contenham 's7config' ou 'configmag'
+      2) Se não existir, usar detectar_pacotes_solinftec()
       3) Se ainda assim não achar, retorna string vazia.
     """
     pacotes = _pm_list_packages()
     if not pacotes:
         return ""
 
-    # 1) Prioriza algo tipo "s7config" ou "configmag"
+    # 1) Prioriza algo tipo "s7config" ou "configmag" DENTRO de com.solinftec.*
     for p in pacotes:
+        if not p.startswith("com.solinftec."):
+            continue
+        if p in PACOTES_EXCLUIDOS:
+            continue
         pl = p.lower()
         if "s7config" in pl or "configmag" in pl:
             return p
@@ -408,6 +415,10 @@ def instalar_aplicativos(lista_apks: List[str]) -> List[str]:
     """
     Instala uma lista de APKs no dispositivo.
     lista_apks: caminhos completos dos arquivos .apk
+
+    Usa 'install -r':
+      - se o pacote já existir, atualiza
+      - se não existir, instala do zero
     """
     logs: List[str] = []
 

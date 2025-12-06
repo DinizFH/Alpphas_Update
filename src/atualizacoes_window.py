@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QAbstractItemView,
+    QApplication,
+    QProgressDialog,
 )
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QCursor, QTextCursor
@@ -200,7 +202,7 @@ class AtualizacoesWindow(QMainWindow):
             "Atualiza as pastas de CADASTROS, MAPAS e PONTO FIXO "
             "no dispositivo conectado."
         )
-        lbl_desc.setWordWrap(True)
+        lbl_desc.setWordWrap(True        )
         lbl_desc.setObjectName("cardDesc")
 
         botoes = QHBoxLayout()
@@ -260,9 +262,8 @@ class AtualizacoesWindow(QMainWindow):
 
         lbl_desc = QLabel(
             "Gerencie os aplicativos Solinftec instalados no dispositivo. "
-            "É possível desinstalar apenas alguns pacotes ou rodar uma "
-            "atualização completa, removendo todos e instalando novos APKs "
-            "cadastrados no módulo Aplicativos."
+            "Você pode desinstalar manualmente alguns pacotes ou atualizar "
+            "os APKs cadastrados no módulo Aplicativos (install -r)."
         )
         lbl_desc.setWordWrap(True)
         lbl_desc.setObjectName("cardDesc")
@@ -488,25 +489,23 @@ class AtualizacoesWindow(QMainWindow):
 
     def desinstalar_aplicativos_selecionados(self):
         """
-        Mostra um diálogo com os pacotes Solinftec / ConfigMag / TPL / sCBordo
-        detectados via ADB e desinstala apenas os selecionados.
+        Mostra um diálogo com os pacotes Solinftec / Bordo relevantes
+        e desinstala apenas os selecionados.
         """
-        # Tenta usar uma lista fixa, se existir
         apps_cfg = getattr(adb_utils, "APPS_GERENCIAVEIS", None)
-
         itens: List[tuple[str, str]] = []
 
         if apps_cfg:
-            # Modo configurado manualmente
+            # modo configurado manualmente
             for app in apps_cfg:
-                nome = app.get("nome_exibicao") or app.get("pacote") or "Aplicativo"
                 pacote = app.get("pacote")
                 if not pacote:
                     continue
+                nome = app.get("nome_exibicao") or pacote
                 label = f"{nome} ({pacote})"
                 itens.append((label, pacote))
         else:
-            # Modo automático: varre o dispositivo
+            # modo automático: detectar pacotes Solinftec/Bordo
             pacotes = adb_utils.detectar_pacotes_solinftec()
             for pkg in pacotes:
                 label = f"Pacote detectado: {pkg}"
@@ -549,23 +548,15 @@ class AtualizacoesWindow(QMainWindow):
 
     def executar_atualizacao_aplicativos(self):
         """
-        Fluxo completo de atualização de aplicativos Solinftec:
+        Fluxo de atualização dos aplicativos:
 
-        1) Desinstalar todos os pacotes Solinftec detectados
-           (desinstalar_aplicativos_solinftec)
-        2) Perguntar ao usuário quais APKs do módulo Aplicativos deseja instalar
-        3) Instalar os APKs selecionados
+        1) Usuário escolhe quais APKs (do módulo Aplicativos) quer instalar
+        2) Para cada APK, roda 'adb install -r':
+           - se o app já existir, é atualizado
+           - se não existir, é instalado do zero
+        3) Mostra barra de progresso durante o processo
         """
-        # 1) Desinstalar todos os apps configurados/detectados
-        self.append_log("=== Atualização de APLICATIVOS Solinftec ===")
-        self.append_log(
-            "🧹 Desinstalando todos os aplicativos Solinftec detectados..."
-        )
-        logs = adb_utils.desinstalar_aplicativos_solinftec()
-        for log in logs:
-            self.append_log(log)
-
-        # 2) Buscar versões de aplicativos cadastradas no módulo Aplicativos
+        # 1) Buscar versões de aplicativos cadastradas no módulo Aplicativos
         try:
             apps = listar_aplicativos_instalacao()
         except Exception as e:
@@ -609,7 +600,7 @@ class AtualizacoesWindow(QMainWindow):
 
         dlg = SelecaoListaDialog(
             "Instalar aplicativos",
-            "Selecione os APKs que deseja instalar no dispositivo:",
+            "Selecione os APKs que deseja instalar/atualizar no dispositivo:",
             itens,
             parent=self,
         )
@@ -630,12 +621,39 @@ class AtualizacoesWindow(QMainWindow):
             self.append_log("=== Fim atualização de APLICATIVOS ===\n")
             return
 
-        self.append_log("📦 Instalando APKs selecionados:")
+        total = len(selecionados)
+        self.append_log("=== Atualização de APLICATIVOS (install -r) ===")
+        self.append_log("📦 Instalando/atualizando APKs selecionados:")
+
         for apk in selecionados:
             self.append_log(f" - {apk}")
 
-        logs = adb_utils.instalar_aplicativos(selecionados)
-        for log in logs:
-            self.append_log(log)
+        # Barra de progresso
+        progress = QProgressDialog(
+            "Instalando aplicativos...",
+            "Cancelar",
+            0,
+            total,
+            self,
+        )
+        progress.setWindowTitle("Atualizando aplicativos")
+        progress.setWindowModality(Qt.ApplicationModal)
+        progress.setMinimumDuration(0)
 
+        # 3) Instalar um por um, atualizando a barra
+        for i, apk in enumerate(selecionados, start=1):
+            if progress.wasCanceled():
+                self.append_log("Instalação cancelada pelo usuário durante o processo.\n")
+                break
+
+            nome_apk = os.path.basename(apk)
+            progress.setLabelText(f"Instalando {nome_apk} ({i}/{total})")
+            progress.setValue(i - 1)
+            QApplication.processEvents()
+
+            logs = adb_utils.instalar_aplicativos([apk])
+            for log in logs:
+                self.append_log(log)
+
+        progress.setValue(total)
         self.append_log("=== Fim atualização de APLICATIVOS ===\n")
