@@ -1,0 +1,12 @@
+PySide6==6.7.2
+mysql-connector-python==8.3.0
+python-dotenv==1.0.1
+bcrypt==4.1.2
+psutil==6.0.0
+requests==2.31.0
+
+# Dependências opcionais porém recomendadas
+coloredlogs==15.0.1
+
+# Necessário apenas na sua máquina de build
+pyinstaller==6.4.0
