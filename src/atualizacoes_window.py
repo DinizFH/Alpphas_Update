@@ -1,4 +1,5 @@
 from typing import List, Dict
+import os
 
 from PySide6.QtWidgets import (
     QMainWindow,
@@ -10,13 +11,75 @@ from PySide6.QtWidgets import (
     QComboBox,
     QMessageBox,
     QTextEdit,
+    QDialog,
+    QListWidget,
+    QListWidgetItem,
+    QAbstractItemView,
 )
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QCursor, QTextCursor
 
 from clientes_repo import listar_clientes
 from equipamentos_repo import listar_equipamentos
+from aplicativos_repo import listar_aplicativos_instalacao
 import adb_utils
+
+
+class SelecaoListaDialog(QDialog):
+    """
+    Diálogo genérico de seleção múltipla.
+    Recebe uma lista de (texto_visivel, valor_associado).
+    """
+
+    def __init__(
+        self,
+        titulo: str,
+        mensagem: str,
+        itens: List[tuple[str, str]],
+        parent=None,
+    ):
+        super().__init__(parent)
+        self.setWindowTitle(titulo)
+        self.resize(450, 350)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
+
+        lbl_msg = QLabel(mensagem)
+        lbl_msg.setWordWrap(True)
+        layout.addWidget(lbl_msg)
+
+        self.list_widget = QListWidget()
+        self.list_widget.setSelectionMode(QAbstractItemView.MultiSelection)
+
+        for texto, valor in itens:
+            item = QListWidgetItem(texto)
+            item.setData(Qt.UserRole, valor)
+            self.list_widget.addItem(item)
+
+        layout.addWidget(self.list_widget)
+
+        botoes = QHBoxLayout()
+        botoes.setSpacing(8)
+
+        btn_cancelar = QPushButton("Cancelar")
+        btn_ok = QPushButton("OK")
+
+        btn_cancelar.clicked.connect(self.reject)
+        btn_ok.clicked.connect(self.accept)
+
+        botoes.addStretch()
+        botoes.addWidget(btn_cancelar)
+        botoes.addWidget(btn_ok)
+
+        layout.addLayout(botoes)
+
+    def selecionados(self) -> List[str]:
+        valores: List[str] = []
+        for item in self.list_widget.selectedItems():
+            valores.append(item.data(Qt.UserRole))
+        return valores
 
 
 class AtualizacoesWindow(QMainWindow):
@@ -50,7 +113,7 @@ class AtualizacoesWindow(QMainWindow):
         layout.addWidget(subtitulo)
 
         # ====================
-        # Linha de seleção
+        # Linha de seleção (cliente/equipamento/ADB)
         # ====================
         linha_sel = QHBoxLayout()
         linha_sel.setSpacing(8)
@@ -78,10 +141,70 @@ class AtualizacoesWindow(QMainWindow):
         layout.addLayout(linha_sel)
 
         # ====================
-        # Linha de ações
+        # Cards: Dados / Aplicativos
         # ====================
-        linha_acoes = QHBoxLayout()
-        linha_acoes.setSpacing(8)
+        cards_row = QHBoxLayout()
+        cards_row.setSpacing(16)
+
+        card_dados = self._criar_card_dados()
+        card_apps = self._criar_card_aplicativos()
+
+        cards_row.addWidget(card_dados, 1)
+        cards_row.addWidget(card_apps, 1)
+
+        layout.addLayout(cards_row)
+
+        # ====================
+        # Log
+        # ====================
+        lbl_log = QLabel("Log de execução:")
+        layout.addWidget(lbl_log)
+
+        self.txt_log = QTextEdit()
+        self.txt_log.setReadOnly(True)
+        self.txt_log.setMinimumHeight(320)
+        layout.addWidget(self.txt_log)
+
+        # Carregar dados iniciais
+        self.carregar_dados()
+
+    # -------------------------------------------------------
+    # Criação dos cards
+    # -------------------------------------------------------
+
+    def _criar_card_dados(self) -> QWidget:
+        """
+        Card para atualização de Cadastros / Mapas / Ponto Fixo / Tudo.
+        """
+        card = QWidget()
+        card.setObjectName("card")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(16, 16, 16, 16)
+        card_layout.setSpacing(10)
+
+        header = QHBoxLayout()
+        header.setSpacing(8)
+
+        lbl_icon = QLabel("📂")
+        lbl_icon.setObjectName("cardIcon")
+        lbl_icon.setFixedWidth(24)
+
+        lbl_title = QLabel("Dados (Trabalho)")
+        lbl_title.setObjectName("cardTitle")
+
+        header.addWidget(lbl_icon)
+        header.addWidget(lbl_title)
+        header.addStretch()
+
+        lbl_desc = QLabel(
+            "Atualiza as pastas de CADASTROS, MAPAS e PONTO FIXO "
+            "no dispositivo conectado."
+        )
+        lbl_desc.setWordWrap(True)
+        lbl_desc.setObjectName("cardDesc")
+
+        botoes = QHBoxLayout()
+        botoes.setSpacing(8)
 
         self.btn_cad = QPushButton("Atualizar CADASTROS")
         self.btn_cad.setCursor(QCursor(Qt.PointingHandCursor))
@@ -99,35 +222,81 @@ class AtualizacoesWindow(QMainWindow):
         self.btn_tudo.setCursor(QCursor(Qt.PointingHandCursor))
         self.btn_tudo.clicked.connect(self.executar_tudo)
 
-        linha_acoes.addWidget(self.btn_cad)
-        linha_acoes.addWidget(self.btn_mapas)
-        linha_acoes.addWidget(self.btn_pf)
-        linha_acoes.addWidget(self.btn_tudo)
-        linha_acoes.addStretch()
+        botoes.addWidget(self.btn_cad)
+        botoes.addWidget(self.btn_mapas)
+        botoes.addWidget(self.btn_pf)
+        botoes.addWidget(self.btn_tudo)
 
-        layout.addLayout(linha_acoes)
+        card_layout.addLayout(header)
+        card_layout.addWidget(lbl_desc)
+        card_layout.addStretch()
+        card_layout.addLayout(botoes)
 
-        # ====================
-        # Log
-        # ====================
-        lbl_log = QLabel("Log de execução:")
-        layout.addWidget(lbl_log)
+        return card
 
-        self.txt_log = QTextEdit()
-        self.txt_log.setReadOnly(True)
-        self.txt_log.setMinimumHeight(320)
-        layout.addWidget(self.txt_log)
+    def _criar_card_aplicativos(self) -> QWidget:
+        """
+        Card para desinstalar/atualizar aplicativos Solinftec.
+        """
+        card = QWidget()
+        card.setObjectName("card")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(16, 16, 16, 16)
+        card_layout.setSpacing(10)
 
-        # Carregar dados iniciais
-        self.carregar_dados()
+        header = QHBoxLayout()
+        header.setSpacing(8)
 
-    # ===========================
+        lbl_icon = QLabel("📲")
+        lbl_icon.setObjectName("cardIcon")
+        lbl_icon.setFixedWidth(24)
+
+        lbl_title = QLabel("Aplicativos Solinftec")
+        lbl_title.setObjectName("cardTitle")
+
+        header.addWidget(lbl_icon)
+        header.addWidget(lbl_title)
+        header.addStretch()
+
+        lbl_desc = QLabel(
+            "Gerencie os aplicativos Solinftec instalados no dispositivo. "
+            "É possível desinstalar apenas alguns pacotes ou rodar uma "
+            "atualização completa, removendo todos e instalando novos APKs "
+            "cadastrados no módulo Aplicativos."
+        )
+        lbl_desc.setWordWrap(True)
+        lbl_desc.setObjectName("cardDesc")
+
+        botoes = QHBoxLayout()
+        botoes.setSpacing(8)
+
+        self.btn_desinstalar_apps = QPushButton("Desinstalar aplicativos…")
+        self.btn_desinstalar_apps.setCursor(QCursor(Qt.PointingHandCursor))
+        self.btn_desinstalar_apps.clicked.connect(
+            self.desinstalar_aplicativos_selecionados
+        )
+
+        self.btn_atualizar_apps = QPushButton("Atualizar aplicativos…")
+        self.btn_atualizar_apps.setCursor(QCursor(Qt.PointingHandCursor))
+        self.btn_atualizar_apps.clicked.connect(self.executar_atualizacao_aplicativos)
+
+        botoes.addWidget(self.btn_desinstalar_apps)
+        botoes.addWidget(self.btn_atualizar_apps)
+        botoes.addStretch()
+
+        card_layout.addLayout(header)
+        card_layout.addWidget(lbl_desc)
+        card_layout.addStretch()
+        card_layout.addLayout(botoes)
+
+        return card
+
+    # -------------------------------------------------------
     # Carregamento / seleção
-    # ===========================
+    # -------------------------------------------------------
 
     def carregar_dados(self):
-        """Carrega listas de clientes e equipamentos do banco e
-        atualiza os combos."""
+        """Carrega listas de clientes e equipamentos do banco e atualiza os combos."""
         try:
             self._clientes = listar_clientes()
         except Exception as e:
@@ -205,18 +374,18 @@ class AtualizacoesWindow(QMainWindow):
             if idx_eq != -1:
                 self.combo_equip.setCurrentIndex(idx_eq)
 
-    # ===========================
+    # -------------------------------------------------------
     # Log helper
-    # ===========================
+    # -------------------------------------------------------
 
     def append_log(self, text: str):
         self.txt_log.append(text)
         self.txt_log.moveCursor(QTextCursor.End)
         self.txt_log.ensureCursorVisible()
 
-    # ===========================
-    # Ações
-    # ===========================
+    # -------------------------------------------------------
+    # Ações ADB - Teste
+    # -------------------------------------------------------
 
     def testar_adb(self):
         self.append_log("=== Testando conexão ADB ===")
@@ -235,6 +404,10 @@ class AtualizacoesWindow(QMainWindow):
             )
             return None
         return equip
+
+    # -------------------------------------------------------
+    # Ações ADB - Dados (Trabalho)
+    # -------------------------------------------------------
 
     def executar_cadastros(self):
         equip = self._validar_equipamento_para_execucao()
@@ -297,7 +470,7 @@ class AtualizacoesWindow(QMainWindow):
         pf = equip["pasta_ponto_fixo"]
 
         self.append_log(
-            f"=== Atualização COMPLETA para equipamento '{equip['nome']}' ==="
+            f"=== Atualização COMPLETA (dados) para equipamento '{equip['nome']}' ==="
         )
         self.append_log(f"Cadastros: {cad}")
         self.append_log(f"Mapas: {mapas}")
@@ -307,4 +480,162 @@ class AtualizacoesWindow(QMainWindow):
         for log in logs:
             self.append_log(log)
 
-        self.append_log("=== Fim atualização TUDO ===\n")
+        self.append_log("=== Fim atualização TUDO (dados) ===\n")
+
+    # -------------------------------------------------------
+    # Ações ADB - Aplicativos
+    # -------------------------------------------------------
+
+    def desinstalar_aplicativos_selecionados(self):
+        """
+        Mostra um diálogo com os pacotes Solinftec / ConfigMag / TPL / sCBordo
+        detectados via ADB e desinstala apenas os selecionados.
+        """
+        # Tenta usar uma lista fixa, se existir
+        apps_cfg = getattr(adb_utils, "APPS_GERENCIAVEIS", None)
+
+        itens: List[tuple[str, str]] = []
+
+        if apps_cfg:
+            # Modo configurado manualmente
+            for app in apps_cfg:
+                nome = app.get("nome_exibicao") or app.get("pacote") or "Aplicativo"
+                pacote = app.get("pacote")
+                if not pacote:
+                    continue
+                label = f"{nome} ({pacote})"
+                itens.append((label, pacote))
+        else:
+            # Modo automático: varre o dispositivo
+            pacotes = adb_utils.detectar_pacotes_solinftec()
+            for pkg in pacotes:
+                label = f"Pacote detectado: {pkg}"
+                itens.append((label, pkg))
+
+        if not itens:
+            QMessageBox.information(
+                self,
+                "Informação",
+                "Nenhum aplicativo Solinftec / Bordo detectado para desinstalar.",
+            )
+            return
+
+        dlg = SelecaoListaDialog(
+            "Desinstalar aplicativos",
+            "Selecione os aplicativos que deseja desinstalar:",
+            itens,
+            parent=self,
+        )
+
+        if dlg.exec() != QDialog.Accepted:
+            return
+
+        selecionados = dlg.selecionados()
+        if not selecionados:
+            QMessageBox.information(
+                self,
+                "Informação",
+                "Nenhum aplicativo selecionado para desinstalação.",
+            )
+            return
+
+        self.append_log("=== Desinstalação de aplicativos (selecionados) ===")
+        for pacote in selecionados:
+            self.append_log(f"--- Desinstalando {pacote} ---")
+            ok, log = adb_utils.run_adb(["uninstall", pacote])
+            self.append_log(log)
+
+        self.append_log("=== Fim desinstalação de aplicativos (selecionados) ===\n")
+
+    def executar_atualizacao_aplicativos(self):
+        """
+        Fluxo completo de atualização de aplicativos Solinftec:
+
+        1) Desinstalar todos os pacotes Solinftec detectados
+           (desinstalar_aplicativos_solinftec)
+        2) Perguntar ao usuário quais APKs do módulo Aplicativos deseja instalar
+        3) Instalar os APKs selecionados
+        """
+        # 1) Desinstalar todos os apps configurados/detectados
+        self.append_log("=== Atualização de APLICATIVOS Solinftec ===")
+        self.append_log(
+            "🧹 Desinstalando todos os aplicativos Solinftec detectados..."
+        )
+        logs = adb_utils.desinstalar_aplicativos_solinftec()
+        for log in logs:
+            self.append_log(log)
+
+        # 2) Buscar versões de aplicativos cadastradas no módulo Aplicativos
+        try:
+            apps = listar_aplicativos_instalacao()
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Erro ao listar aplicativos:\n{e}")
+            self.append_log("Erro ao listar aplicativos; abortando instalação.\n")
+            self.append_log("=== Fim atualização de APLICATIVOS ===\n")
+            return
+
+        itens: List[tuple[str, str]] = []
+        for app in apps:
+            caminho = (
+                app.get("arquivo_local")
+                or app.get("caminho_arquivo")
+                or app.get("path")
+                or app.get("arquivo")
+                or app.get("apk_path")
+            )
+            if not caminho:
+                continue
+
+            nome = (
+                app.get("nome")
+                or app.get("descricao")
+                or os.path.basename(caminho)
+            )
+            versao = app.get("versao", "?")
+            label = f"{nome} - v{versao}"
+            itens.append((label, caminho))
+
+        if not itens:
+            QMessageBox.information(
+                self,
+                "Informação",
+                "Nenhum APK com caminho válido foi encontrado no módulo Aplicativos.",
+            )
+            self.append_log(
+                "Nenhum APK com caminho válido encontrado no módulo Aplicativos.\n"
+            )
+            self.append_log("=== Fim atualização de APLICATIVOS ===\n")
+            return
+
+        dlg = SelecaoListaDialog(
+            "Instalar aplicativos",
+            "Selecione os APKs que deseja instalar no dispositivo:",
+            itens,
+            parent=self,
+        )
+
+        if dlg.exec() != QDialog.Accepted:
+            self.append_log("Instalação de aplicativos cancelada pelo usuário.\n")
+            self.append_log("=== Fim atualização de APLICATIVOS ===\n")
+            return
+
+        selecionados = dlg.selecionados()
+        if not selecionados:
+            QMessageBox.information(
+                self,
+                "Informação",
+                "Nenhum APK selecionado para instalação.",
+            )
+            self.append_log("Nenhum APK selecionado; nada será instalado.\n")
+            self.append_log("=== Fim atualização de APLICATIVOS ===\n")
+            return
+
+        self.append_log("📦 Instalando APKs selecionados:")
+        for apk in selecionados:
+            self.append_log(f" - {apk}")
+
+        logs = adb_utils.instalar_aplicativos(selecionados)
+        for log in logs:
+            self.append_log(log)
+
+        self.append_log("=== Fim atualização de APLICATIVOS ===\n")

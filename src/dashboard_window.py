@@ -10,9 +10,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QCursor
 
 from clientes_window import ClientesWindow
+    # contém sinal: clientes_atualizados
 from aplicativos_window import AplicativosWindow
 from equipamentos_window import EquipamentosWindow
+    # contém sinal: equipamentos_atualizados
 from atualizacoes_window import AtualizacoesWindow
+    # contém método: recarregar_listas()
 
 
 class MainWindow(QMainWindow):
@@ -35,6 +38,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(32, 32, 32, 32)
         layout.setSpacing(24)
 
+        # título principal
         titulo = QLabel("Alpphas Update")
         titulo.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         titulo.setObjectName("appTitle")
@@ -48,7 +52,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(titulo)
         layout.addWidget(subtitulo)
 
-        # Linha 1: Clientes / Aplicativos
+        # ----------------------------------------------------
+        # Linha 1 – Clientes / Aplicativos
+        # ----------------------------------------------------
         row1 = QHBoxLayout()
         row1.setSpacing(20)
 
@@ -69,21 +75,23 @@ class MainWindow(QMainWindow):
         row1.addWidget(card_clientes)
         row1.addWidget(card_aplicativos)
 
-        # Linha 2: Equipamentos / Atualizações
+        # ----------------------------------------------------
+        # Linha 2 – Equipamentos / Atualizações
+        # ----------------------------------------------------
         row2 = QHBoxLayout()
         row2.setSpacing(20)
 
         card_equipamentos = self._criar_card(
             icone="🚜",
             titulo="Equipamentos",
-            descricao="Modelos de equipamentos amarrados aos clientes.",
+            descricao="Modelos de equipamentos vinculados aos clientes.",
             callback=self.abrir_equipamentos,
         )
 
         card_atualizacoes = self._criar_card(
             icone="🔄",
             titulo="Atualizações",
-            descricao="Fluxo de atualizações via ADB.",
+            descricao="Atualizações via ADB (dados e aplicativos).",
             callback=self.abrir_atualizacoes,
         )
 
@@ -93,6 +101,10 @@ class MainWindow(QMainWindow):
         layout.addLayout(row1)
         layout.addLayout(row2)
         layout.addStretch()
+
+    # ===========================================================
+    # Criador de cards
+    # ===========================================================
 
     def _criar_card(self, icone: str, titulo: str, descricao: str, callback):
         card = QWidget()
@@ -132,59 +144,71 @@ class MainWindow(QMainWindow):
         return card
 
     # ===========================================================
-    # Abertura das janelas + conexão dos sinais
+    # Abertura de janelas + gestão de sinais
     # ===========================================================
 
     def abrir_clientes(self):
         if self.clientes_window is None:
             self.clientes_window = ClientesWindow()
 
-            # se Atualizações já existir, conecta o sinal agora
+            # Conecta sinal -> AtualizacoesWindow
             if self.atualizacoes_window is not None:
-                self.clientes_window.clientes_atualizados.connect(
-                    self.atualizacoes_window.recarregar_listas
-                )
+                self._conectar_clientes_para_atualizacoes()
 
-        self.clientes_window.show()
-        self.clientes_window.raise_()
-        self.clientes_window.activateWindow()
+        self._focar_janela(self.clientes_window)
 
     def abrir_aplicativos(self):
         if self.aplicativos_window is None:
             self.aplicativos_window = AplicativosWindow()
-        self.aplicativos_window.show()
-        self.aplicativos_window.raise_()
-        self.aplicativos_window.activateWindow()
+
+        self._focar_janela(self.aplicativos_window)
 
     def abrir_equipamentos(self):
         if self.equipamentos_window is None:
             self.equipamentos_window = EquipamentosWindow()
 
-            # se Atualizações já existir, conecta o sinal agora
+            # Conecta sinal -> AtualizacoesWindow
             if self.atualizacoes_window is not None:
-                self.equipamentos_window.equipamentos_atualizados.connect(
-                    self.atualizacoes_window.recarregar_listas
-                )
+                self._conectar_equip_para_atualizacoes()
 
-        self.equipamentos_window.show()
-        self.equipamentos_window.raise_()
-        self.equipamentos_window.activateWindow()
+        self._focar_janela(self.equipamentos_window)
 
     def abrir_atualizacoes(self):
         if self.atualizacoes_window is None:
             self.atualizacoes_window = AtualizacoesWindow()
 
-            # se as outras janelas já existirem, conecta os sinais agora
+            # Conecta sinais se janelas já existirem
             if self.clientes_window is not None:
-                self.clientes_window.clientes_atualizados.connect(
-                    self.atualizacoes_window.recarregar_listas
-                )
+                self._conectar_clientes_para_atualizacoes()
 
             if self.equipamentos_window is not None:
-                self.equipamentos_window.equipamentos_atualizados.connect(
-                    self.atualizacoes_window.recarregar_listas
-                )
+                self._conectar_equip_para_atualizacoes()
 
-        self.atualizacoes_window.show()
-        self.atualizacoes_window.raise_()
-        self.atualizacoes_window.activateWindow()
+        self._focar_janela(self.atualizacoes_window)
+
+    # ===========================================================
+    # Helpers internos
+    # ===========================================================
+
+    def _focar_janela(self, janela):
+        janela.show()
+        janela.raise_()
+        janela.activateWindow()
+
+    def _conectar_clientes_para_atualizacoes(self):
+        try:
+            self.clientes_window.clientes_atualizados.disconnect()
+        except:
+            pass
+        self.clientes_window.clientes_atualizados.connect(
+            self.atualizacoes_window.recarregar_listas
+        )
+
+    def _conectar_equip_para_atualizacoes(self):
+        try:
+            self.equipamentos_window.equipamentos_atualizados.disconnect()
+        except:
+            pass
+        self.equipamentos_window.equipamentos_atualizados.connect(
+            self.atualizacoes_window.recarregar_listas
+        )

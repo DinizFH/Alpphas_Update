@@ -1,6 +1,6 @@
 import os
-import shutil
 import subprocess
+import shutil
 from typing import List, Tuple
 
 # ============================================================
@@ -109,23 +109,16 @@ def run_adb(args: List[str]) -> Tuple[bool, str]:
 
 
 # ============================================================
-# DETECÇÃO DO PACOTE SOLINFTEC
+# HELPERS PARA LISTAR PACOTES NO DISPOSITIVO
 # ============================================================
 
-def descobrir_pacote_solinftec() -> str:
+def _pm_list_packages() -> List[str]:
     """
-    Identifica automaticamente qual app principal da Solinftec
-    deve ser limpo antes da atualização.
-
-    Regras:
-      1) Procurar pacotes que contenham 's7config' (mais importante)
-      2) Se não existir, procurar outros 'com.solinftec.*'
-         ignorando 'launcher' e 'speechtotext'
-      3) Se ainda assim não achar, retorna string vazia.
+    Executa 'pm list packages' e retorna apenas a lista de nomes de pacotes.
     """
     adb_path = _resolver_caminho_adb()
     if not adb_path:
-        return ""
+        return []
 
     try:
         result = subprocess.run(
@@ -135,32 +128,95 @@ def descobrir_pacote_solinftec() -> str:
             check=False,
         )
     except Exception:
-        return ""
+        return []
 
     if result.returncode != 0:
-        return ""
+        return []
 
-    pacotes_solinf: List[str] = []
+    pacotes: List[str] = []
     for linha in result.stdout.splitlines():
         linha = linha.strip()
-        if "com.solinftec" in linha:
-            # formato: "package:com.solinftec.algumaCoisa"
-            pacote = linha.replace("package:", "").strip()
-            pacotes_solinf.append(pacote)
+        if linha.startswith("package:"):
+            pacotes.append(linha.replace("package:", "").strip())
+    return pacotes
 
-    if not pacotes_solinf:
+
+def listar_pacotes_instalados() -> List[str]:
+    """
+    Retorna todos os pacotes instalados no dispositivo Android.
+    """
+    return _pm_list_packages()
+
+
+def detectar_pacotes_solinftec() -> List[str]:
+    """
+    Retorna pacotes relacionados à Solinftec / ConfigMag / TPL / SCBordo
+    encontrados no dispositivo, com base em palavras-chave.
+
+    Isso permite pegar:
+      - com.solinftec.s7configmag100r (tela nova)
+      - qualquer com.solinftec.* (SCBordo, TPL, etc.)
+      - outros pacotes que contenham 'configmag', 'tpl', 'bordo', etc.
+    """
+    pacotes = _pm_list_packages()
+    encontrados: List[str] = []
+
+    # Palavras-chave relevantes
+    chaves = ["solinf", "config", "mag", "tpl", "bordo", "scb", "s7"]
+
+    for pkg in pacotes:
+        lower = pkg.lower()
+        if any(ch in lower for ch in chaves):
+            encontrados.append(pkg)
+
+    # remove duplicados preservando a ordem
+    vistos = set()
+    unicos = []
+    for p in encontrados:
+        if p not in vistos:
+            vistos.add(p)
+            unicos.append(p)
+
+    return unicos
+
+
+# Pacotes base que normalmente existem em tela “zero km”
+# (usados como fallback, principalmente em atualização completa)
+PACOTES_SOLINFTEC_BASE = [
+    "com.solinftec.s7configmag100r",
+    "com.solinftec.s7launcher",
+]
+# alias para compatibilidade com código que usa PACOTES_SOLINFTEC
+PACOTES_SOLINFTEC = PACOTES_SOLINFTEC_BASE
+
+
+# ============================================================
+# DETECÇÃO DO PACOTE PRINCIPAL PARA pm clear
+# ============================================================
+
+def descobrir_pacote_solinftec() -> str:
+    """
+    Identifica automaticamente qual app principal da Solinftec
+    deve ser limpo antes da atualização (pm clear).
+
+    Regras:
+      1) Procurar pacotes que contenham 's7config' ou 'configmag'
+      2) Se não existir, procurar outros pacotes relacionados
+         à Solinftec (detectar_pacotes_solinftec)
+      3) Se ainda assim não achar, retorna string vazia.
+    """
+    pacotes = _pm_list_packages()
+    if not pacotes:
         return ""
 
-    # 1) Prioriza pacotes tipo "s7config"
-    for p in pacotes_solinf:
-        if "s7config" in p.lower():
+    # 1) Prioriza algo tipo "s7config" ou "configmag"
+    for p in pacotes:
+        pl = p.lower()
+        if "s7config" in pl or "configmag" in pl:
             return p
 
-    # 2) Fallback: qualquer outro com.solinftec.*, exceto launcher e speechtotext
-    candidatos = [
-        p for p in pacotes_solinf
-        if "launcher" not in p.lower() and "speechtotext" not in p.lower()
-    ]
+    # 2) Usa a detecção mais ampla de pacotes Solinftec
+    candidatos = detectar_pacotes_solinftec()
     if candidatos:
         return candidatos[0]
 
@@ -169,7 +225,7 @@ def descobrir_pacote_solinftec() -> str:
 
 
 # ============================================================
-# FUNÇÕES DE ALTA NÍVEL
+# FUNÇÕES DE ALTA NÍVEL - TESTE ADB
 # ============================================================
 
 def testar_conexao_dispositivo() -> List[str]:
@@ -212,7 +268,11 @@ def _steps_preparar_pasta(destino: str) -> List[List[str]]:
         steps.append(["shell", "pm", "clear", pacote])
     else:
         # Apenas loga, sem quebrar fluxo
-        steps.append(["shell", "echo", "Nenhum pacote Solinftec relevante encontrado - ignorando pm clear"])
+        steps.append([
+            "shell",
+            "echo",
+            "Nenhum pacote Solinftec relevante encontrado - ignorando pm clear",
+        ])
 
     steps += [
         ["shell", "mkdir", "-p", BASE_TRABALHO],
@@ -222,6 +282,10 @@ def _steps_preparar_pasta(destino: str) -> List[List[str]]:
 
     return steps
 
+
+# ============================================================
+# ATUALIZAÇÃO DE /sdcard/Trabalho
+# ============================================================
 
 def atualizar_cadastros(path_local: str) -> List[str]:
     """
@@ -308,5 +372,48 @@ def atualizar_tudo(path_cad: str, path_mapas: str, path_pf: str) -> List[str]:
     logs.extend(atualizar_cadastros(path_cad))
     logs.extend(atualizar_mapas(path_mapas))
     logs.extend(atualizar_ponto_fixo(path_pf))
+
+    return logs
+
+
+# ============================================================
+# DESINSTALAÇÃO / INSTALAÇÃO DE APLICATIVOS
+# ============================================================
+
+def desinstalar_aplicativos_solinftec() -> List[str]:
+    """
+    Desinstala pacotes Solinftec / ConfigMag / TPL / SCBordo.
+
+    Combina:
+      - PACOTES_SOLINFTEC_BASE (tela "zero km")
+      - detectar_pacotes_solinftec() (scan real do dispositivo)
+    """
+    logs: List[str] = []
+
+    encontrados = detectar_pacotes_solinftec()
+    todos = list(dict.fromkeys(PACOTES_SOLINFTEC_BASE + encontrados))
+
+    if not todos:
+        logs.append("Nenhum pacote Solinftec encontrado para desinstalação.\n")
+        return logs
+
+    for pacote in todos:
+        ok, log = run_adb(["uninstall", pacote])
+        logs.append(f"--- Desinstalando {pacote} ---\n{log}")
+
+    return logs
+
+
+def instalar_aplicativos(lista_apks: List[str]) -> List[str]:
+    """
+    Instala uma lista de APKs no dispositivo.
+    lista_apks: caminhos completos dos arquivos .apk
+    """
+    logs: List[str] = []
+
+    for apk in lista_apks:
+        apk_norm = os.path.normpath(apk)
+        ok, log = run_adb(["install", "-r", apk_norm])  # -r = reinstalar mantendo dados
+        logs.append(f"--- Instalando {apk_norm} ---\n{log}")
 
     return logs

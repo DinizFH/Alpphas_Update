@@ -6,6 +6,7 @@ from db import get_connection
 def listar_aplicativos_resumo() -> List[Dict]:
     """
     Lista aplicativos com quantidade de versões e última versão cadastrada.
+    Usado pela tela de Aplicativos (lista principal).
     """
     sql = """
         SELECT
@@ -40,7 +41,12 @@ def criar_aplicativo(nome: str) -> int:
         return cursor.lastrowid
 
 
-def criar_versao(aplicativo_id: int, versao: str, arquivo_local: str, padrao: bool = True) -> int:
+def criar_versao(
+    aplicativo_id: int,
+    versao: str,
+    arquivo_local: str,
+    padrao: bool = True,
+) -> int:
     """
     Cria um registro de versão de aplicativo.
     Se padrao=True, desmarca outras versões padrão desse aplicativo.
@@ -73,3 +79,45 @@ def excluir_aplicativo(aplicativo_id: int) -> None:
         cursor = conn.cursor()
         cursor.execute(sql, (aplicativo_id,))
         conn.commit()
+
+
+# ==========================================================
+# NOVO: listagem de versões para instalação via ADB
+# ==========================================================
+
+def listar_aplicativos_instalacao() -> List[Dict]:
+    """
+    Lista VERSÕES de aplicativos que possuem arquivo_local
+    para instalação via ADB (usado pela AtualizacoesWindow).
+
+    Cada item retornado é um dict com, no mínimo:
+        - versao_id
+        - aplicativo_id
+        - nome          (nome do aplicativo)
+        - versao
+        - arquivo_local (caminho completo do APK)
+        - padrao
+        - criado_em
+    """
+    sql = """
+        SELECT
+            v.id          AS versao_id,
+            v.aplicativo_id,
+            a.nome       AS nome,
+            v.versao,
+            v.arquivo_local,
+            v.padrao,
+            v.criado_em
+        FROM aplicativos_versoes v
+        INNER JOIN aplicativos a ON a.id = v.aplicativo_id
+        WHERE v.arquivo_local IS NOT NULL
+          AND v.arquivo_local <> ''
+        ORDER BY a.nome ASC, v.versao DESC
+    """
+
+    with get_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(sql)
+        rows = cursor.fetchall()
+
+    return rows
