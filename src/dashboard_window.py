@@ -52,7 +52,7 @@ class MainWindow(QMainWindow):
         # --------------------------
         # RODAPÉ
         # --------------------------
-        rodape = QLabel("Desenvolvido por: João Antonio Diniz Filho\n"
+        rodape = QLabel("v1.0 - Desenvolvido por: João Antonio Diniz Filho\n"
         "Analista de Sucesso do Cliente SR")
         rodape.setAlignment(Qt.AlignCenter)
         rodape.setStyleSheet("""
