@@ -19,7 +19,7 @@ from clientes_repo import listar_clientes, criar_cliente, excluir_cliente
 
 class ClientesWindow(QMainWindow):
 
-    # 🔥 NOVO: sinal que será emitido quando a lista mudar
+    # Sinal que será emitido quando a lista mudar
     clientes_atualizados = Signal()
 
     def __init__(self):
@@ -146,7 +146,7 @@ class ClientesWindow(QMainWindow):
 
         self._atualizar_grid()
 
-        # 🔥 EMITIR SINAL para as outras telas
+        # EMITIR SINAL para as outras telas
         self.clientes_atualizados.emit()
 
     # ===========================================================
@@ -191,5 +191,5 @@ class ClientesWindow(QMainWindow):
         QMessageBox.information(self, "Sucesso", f"Cliente '{nome}' excluído.")
         self._atualizar_grid()
 
-        # 🔥 EMITIR SINAL
+        # EMITIR SINAL
         self.clientes_atualizados.emit()

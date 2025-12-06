@@ -30,7 +30,7 @@ from equipamentos_repo import (
 
 
 class EquipamentosWindow(QMainWindow):
-    # 🔥 NOVO: sinal para avisar outras telas (Atualizações)
+    # Sinal para avisar outras telas (Atualizações)
     equipamentos_atualizados = Signal()
 
     def __init__(self):
@@ -318,7 +318,7 @@ class EquipamentosWindow(QMainWindow):
         )
         self.recarregar_dados()
 
-        # 🔥 avisa todo mundo (Atualizações, etc.)
+        # Avisa todo mundo (Atualizações, etc.)
         self.equipamentos_atualizados.emit()
 
     def editar_selecionado(self):
@@ -402,7 +402,7 @@ class EquipamentosWindow(QMainWindow):
         )
         self.recarregar_dados()
 
-        # 🔥 também dispara, porque Atualizações pode estar aberta
+        # Também dispara, porque Atualizações pode estar aberta
         self.equipamentos_atualizados.emit()
 
     def excluir_selecionado(self):
@@ -445,7 +445,7 @@ class EquipamentosWindow(QMainWindow):
         QMessageBox.information(self, "Sucesso", f"Equipamento '{nome}' excluído.")
         self.recarregar_dados()
 
-        # 🔥 emite sinal para atualizar combos em Atualizações
+        # Emite sinal para atualizar combos em Atualizações
         self.equipamentos_atualizados.emit()
 
     # ============================

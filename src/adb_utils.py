@@ -148,7 +148,7 @@ def listar_pacotes_instalados() -> List[str]:
     return _pm_list_packages()
 
 
-# Pacotes que NÃO queremos nunca tratar como Solinftec/Bordo
+# Pacotes que NÃO queremos tratar como Solinftec/Bordo
 PACOTES_EXCLUIDOS = {
     "com.google.android.configupdater",
     "com.android.carrierconfig",

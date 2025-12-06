@@ -1,4 +1,3 @@
-# src/aplicativos_repo.py
 from typing import List, Dict
 from db import get_connection
 
@@ -82,7 +81,7 @@ def excluir_aplicativo(aplicativo_id: int) -> None:
 
 
 # ==========================================================
-# NOVO: listagem de versões para instalação via ADB
+# Listagem de versões para instalação via ADB
 # ==========================================================
 
 def listar_aplicativos_instalacao() -> List[Dict]:
