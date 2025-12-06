@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QComboBox,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QCursor
 
 from clientes_repo import listar_clientes
@@ -30,6 +30,9 @@ from equipamentos_repo import (
 
 
 class EquipamentosWindow(QMainWindow):
+    # 🔥 NOVO: sinal para avisar outras telas (Atualizações)
+    equipamentos_atualizados = Signal()
+
     def __init__(self):
         super().__init__()
 
@@ -146,8 +149,7 @@ class EquipamentosWindow(QMainWindow):
         layout.addWidget(self.table)
 
         # Carregar dados iniciais
-        self.carregar_clientes_filtro()
-        self.carregar_equipamentos()
+        self.recarregar_dados()
 
     # ============================
     # Carregamento de dados
@@ -314,7 +316,10 @@ class EquipamentosWindow(QMainWindow):
             "Sucesso",
             f"Equipamento '{nome_modelo}' cadastrado com sucesso.",
         )
-        self.carregar_equipamentos()
+        self.recarregar_dados()
+
+        # 🔥 avisa todo mundo (Atualizações, etc.)
+        self.equipamentos_atualizados.emit()
 
     def editar_selecionado(self):
         linha = self.table.currentRow()
@@ -395,7 +400,10 @@ class EquipamentosWindow(QMainWindow):
             "Sucesso",
             f"Equipamento '{novo_nome}' atualizado com sucesso.",
         )
-        self.carregar_equipamentos()
+        self.recarregar_dados()
+
+        # 🔥 também dispara, porque Atualizações pode estar aberta
+        self.equipamentos_atualizados.emit()
 
     def excluir_selecionado(self):
         linha = self.table.currentRow()
@@ -435,7 +443,10 @@ class EquipamentosWindow(QMainWindow):
             return
 
         QMessageBox.information(self, "Sucesso", f"Equipamento '{nome}' excluído.")
-        self.carregar_equipamentos()
+        self.recarregar_dados()
+
+        # 🔥 emite sinal para atualizar combos em Atualizações
+        self.equipamentos_atualizados.emit()
 
     # ============================
     # Abrir pastas

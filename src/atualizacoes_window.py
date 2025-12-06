@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QTextEdit,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QCursor, QTextCursor
 
 from clientes_repo import listar_clientes
@@ -118,7 +118,7 @@ class AtualizacoesWindow(QMainWindow):
         self.txt_log.setMinimumHeight(320)
         layout.addWidget(self.txt_log)
 
-        # Carregar dados
+        # Carregar dados iniciais
         self.carregar_dados()
 
     # ===========================
@@ -126,6 +126,8 @@ class AtualizacoesWindow(QMainWindow):
     # ===========================
 
     def carregar_dados(self):
+        """Carrega listas de clientes e equipamentos do banco e
+        atualiza os combos."""
         try:
             self._clientes = listar_clientes()
         except Exception as e:
@@ -174,6 +176,34 @@ class AtualizacoesWindow(QMainWindow):
             if e["id"] == equip_id:
                 return e
         return None
+
+    @Slot()
+    def recarregar_listas(self) -> None:
+        """
+        Slot para ser conectado aos sinais das telas de Clientes/Equipamentos.
+        Recarrega clientes e equipamentos mantendo, se possível,
+        o cliente e o equipamento atualmente selecionados.
+        """
+        cliente_id_atual = self.combo_cliente.currentData()
+        equip_id_atual = self.combo_equip.currentData()
+
+        # Recarrega tudo do banco
+        self.carregar_dados()
+
+        # Tenta restaurar cliente selecionado
+        if cliente_id_atual is not None:
+            idx_cli = self.combo_cliente.findData(cliente_id_atual)
+            if idx_cli != -1:
+                self.combo_cliente.setCurrentIndex(idx_cli)
+
+        # Atualiza equipamentos para o cliente atual
+        self._atualizar_combo_equipamentos()
+
+        # Tenta restaurar equipamento selecionado
+        if equip_id_atual is not None:
+            idx_eq = self.combo_equip.findData(equip_id_atual)
+            if idx_eq != -1:
+                self.combo_equip.setCurrentIndex(idx_eq)
 
     # ===========================
     # Log helper

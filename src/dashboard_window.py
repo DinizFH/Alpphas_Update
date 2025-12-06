@@ -22,10 +22,11 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Alpphas Update")
         self.resize(1000, 600)
 
-        self.clientes_window = None
-        self.aplicativos_window = None
-        self.equipamentos_window = None
-        self.atualizacoes_window = None
+        # referências das janelas filhas
+        self.clientes_window: ClientesWindow | None = None
+        self.aplicativos_window: AplicativosWindow | None = None
+        self.equipamentos_window: EquipamentosWindow | None = None
+        self.atualizacoes_window: AtualizacoesWindow | None = None
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -130,9 +131,20 @@ class MainWindow(QMainWindow):
 
         return card
 
+    # ===========================================================
+    # Abertura das janelas + conexão dos sinais
+    # ===========================================================
+
     def abrir_clientes(self):
         if self.clientes_window is None:
             self.clientes_window = ClientesWindow()
+
+            # se Atualizações já existir, conecta o sinal agora
+            if self.atualizacoes_window is not None:
+                self.clientes_window.clientes_atualizados.connect(
+                    self.atualizacoes_window.recarregar_listas
+                )
+
         self.clientes_window.show()
         self.clientes_window.raise_()
         self.clientes_window.activateWindow()
@@ -147,6 +159,13 @@ class MainWindow(QMainWindow):
     def abrir_equipamentos(self):
         if self.equipamentos_window is None:
             self.equipamentos_window = EquipamentosWindow()
+
+            # se Atualizações já existir, conecta o sinal agora
+            if self.atualizacoes_window is not None:
+                self.equipamentos_window.equipamentos_atualizados.connect(
+                    self.atualizacoes_window.recarregar_listas
+                )
+
         self.equipamentos_window.show()
         self.equipamentos_window.raise_()
         self.equipamentos_window.activateWindow()
@@ -154,6 +173,18 @@ class MainWindow(QMainWindow):
     def abrir_atualizacoes(self):
         if self.atualizacoes_window is None:
             self.atualizacoes_window = AtualizacoesWindow()
+
+            # se as outras janelas já existirem, conecta os sinais agora
+            if self.clientes_window is not None:
+                self.clientes_window.clientes_atualizados.connect(
+                    self.atualizacoes_window.recarregar_listas
+                )
+
+            if self.equipamentos_window is not None:
+                self.equipamentos_window.equipamentos_atualizados.connect(
+                    self.atualizacoes_window.recarregar_listas
+                )
+
         self.atualizacoes_window.show()
         self.atualizacoes_window.raise_()
         self.atualizacoes_window.activateWindow()

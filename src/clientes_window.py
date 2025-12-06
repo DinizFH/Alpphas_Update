@@ -11,13 +11,17 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QAbstractItemView,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QCursor
 
 from clientes_repo import listar_clientes, criar_cliente, excluir_cliente
 
 
 class ClientesWindow(QMainWindow):
+
+    # 🔥 NOVO: sinal que será emitido quando a lista mudar
+    clientes_atualizados = Signal()
+
     def __init__(self):
         super().__init__()
 
@@ -59,7 +63,7 @@ class ClientesWindow(QMainWindow):
 
         self.btn_atualizar = QPushButton("Atualizar lista")
         self.btn_atualizar.setCursor(QCursor(Qt.PointingHandCursor))
-        self.btn_atualizar.clicked.connect(self.carregar_clientes)
+        self.btn_atualizar.clicked.connect(self._atualizar_grid)
 
         botoes_layout.addWidget(self.btn_novo)
         botoes_layout.addWidget(self.btn_excluir)
@@ -73,18 +77,22 @@ class ClientesWindow(QMainWindow):
         self.table.setColumnCount(3)
         self.table.setHorizontalHeaderLabels(["ID", "Nome", "Criado em"])
 
-        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
 
         self.table.horizontalHeader().setStretchLastSection(True)
 
         layout.addWidget(self.table)
 
         # Carregar dados
-        self.carregar_clientes()
+        self._atualizar_grid()
 
-    def carregar_clientes(self):
+    # ===========================================================
+    # Carregar tabela
+    # ===========================================================
+
+    def _atualizar_grid(self):
         try:
             clientes = listar_clientes()
         except Exception as e:
@@ -107,6 +115,10 @@ class ClientesWindow(QMainWindow):
             self.table.setItem(row_idx, 2, item_criado)
 
         self.table.resizeColumnsToContents()
+
+    # ===========================================================
+    # Criar novo cliente
+    # ===========================================================
 
     def novo_cliente(self):
         nome, ok = QInputDialog.getText(
@@ -132,7 +144,14 @@ class ClientesWindow(QMainWindow):
             f"Cliente '{nome}' criado com ID {novo_id}.",
         )
 
-        self.carregar_clientes()
+        self._atualizar_grid()
+
+        # 🔥 EMITIR SINAL para as outras telas
+        self.clientes_atualizados.emit()
+
+    # ===========================================================
+    # Excluir cliente
+    # ===========================================================
 
     def excluir_selecionado(self):
         linha = self.table.currentRow()
@@ -170,4 +189,7 @@ class ClientesWindow(QMainWindow):
             return
 
         QMessageBox.information(self, "Sucesso", f"Cliente '{nome}' excluído.")
-        self.carregar_clientes()
+        self._atualizar_grid()
+
+        # 🔥 EMITIR SINAL
+        self.clientes_atualizados.emit()
