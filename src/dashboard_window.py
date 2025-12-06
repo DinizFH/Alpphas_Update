@@ -12,6 +12,7 @@ from PySide6.QtGui import QCursor
 from clientes_window import ClientesWindow
 from aplicativos_window import AplicativosWindow
 from equipamentos_window import EquipamentosWindow
+from atualizacoes_window import AtualizacoesWindow
 
 
 class MainWindow(QMainWindow):
@@ -24,6 +25,7 @@ class MainWindow(QMainWindow):
         self.clientes_window = None
         self.aplicativos_window = None
         self.equipamentos_window = None
+        self.atualizacoes_window = None
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -57,7 +59,7 @@ class MainWindow(QMainWindow):
         )
 
         card_aplicativos = self._criar_card(
-            icone="📦",
+            icone="📱",
             titulo="Aplicativos",
             descricao="Repositório de APKs e versões.",
             callback=self.abrir_aplicativos,
@@ -80,8 +82,8 @@ class MainWindow(QMainWindow):
         card_atualizacoes = self._criar_card(
             icone="🔄",
             titulo="Atualizações",
-            descricao="Fluxo de atualização via ADB (em construção).",
-            callback=self.nao_implementado,
+            descricao="Fluxo de atualizações via ADB.",
+            callback=self.abrir_atualizacoes,
         )
 
         row2.addWidget(card_equipamentos)
@@ -149,11 +151,9 @@ class MainWindow(QMainWindow):
         self.equipamentos_window.raise_()
         self.equipamentos_window.activateWindow()
 
-    def nao_implementado(self):
-        from PySide6.QtWidgets import QMessageBox
-
-        QMessageBox.information(
-            self,
-            "Em construção",
-            "Este módulo ainda será implementado.",
-        )
+    def abrir_atualizacoes(self):
+        if self.atualizacoes_window is None:
+            self.atualizacoes_window = AtualizacoesWindow()
+        self.atualizacoes_window.show()
+        self.atualizacoes_window.raise_()
+        self.atualizacoes_window.activateWindow()
